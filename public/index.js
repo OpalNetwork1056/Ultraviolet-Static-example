@@ -1,4 +1,5 @@
 "use strict";
+
 /**
  * @type {HTMLFormElement}
  */
@@ -19,26 +20,52 @@ const error = document.getElementById("uv-error");
  * @type {HTMLPreElement}
  */
 const errorCode = document.getElementById("uv-error-code");
-const connection = new BareMux.BareMuxConnection("/baremux/worker.js")
+
+/**
+ * Initialize BareMuxConnection with the path to the worker script
+ * @type {BareMux.BareMuxConnection}
+ */
+const connection = new BareMux.BareMuxConnection("/baremux/worker.js");
+
+// Define the constant WISP URL to always use
+const WISP_URL = "wss://ruby.rubynetwork.co/wisp/";
 
 form.addEventListener("submit", async (event) => {
-	event.preventDefault();
+    event.preventDefault();
 
-	try {
-		await registerSW();
-	} catch (err) {
-		error.textContent = "Failed to register service worker.";
-		errorCode.textContent = err.toString();
-		throw err;
-	}
+    // Register the service worker
+    try {
+        await registerSW();
+    } catch (err) {
+        error.textContent = "Failed to register service worker.";
+        errorCode.textContent = err.toString();
+        return; // Exit early if service worker registration fails
+    }
 
-	const url = search(address.value, searchEngine.value);
+    // Perform the search and get the URL
+    const url = search(address.value, searchEngine.value);
 
-	let frame = document.getElementById("uv-frame");
-	frame.style.display = "block";
-	let wispUrl = (location.protocol === "https:" ? "wss" : "ws") + "://" + location.host + "/wisp/";
-	if (await connection.getTransport() !== "/epoxy/index.mjs") {
-		await connection.setTransport("/epoxy/index.mjs", [{ wisp: wispUrl }]);
-	}
-	frame.src = __uv$config.prefix + __uv$config.encodeUrl(url);
+    const frame = document.getElementById("uv-frame");
+    frame.style.display = "block";
+
+    try {
+        // Check and update the transport if necessary
+        const currentTransport = await connection.getTransport();
+        if (currentTransport !== "/epoxy/index.mjs") {
+            await connection.setTransport("/epoxy/index.mjs", [{ wisp: WISP_URL }]);
+        }
+    } catch (err) {
+        error.textContent = "Failed to set transport.";
+        errorCode.textContent = err.toString();
+        return; // Exit early if setting transport fails
+    }
+
+    // Update iframe source with encoded URL
+    try {
+        frame.src = __uv$config.prefix + __uv$config.encodeUrl(url);
+    } catch (err) {
+        error.textContent = "Failed to update iframe source.";
+        errorCode.textContent = err.toString();
+    }
 });
+
